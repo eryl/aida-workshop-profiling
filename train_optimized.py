@@ -9,6 +9,7 @@ from statistics import mean
 from typing import Union, TypeVar, Type, Optional
 import datetime
 from collections import deque
+import pickle
 
 import torch
 from torch import nn
@@ -23,6 +24,13 @@ import tqdm
 
 from experiment import ExperimentConfig
 
+try:
+    @profile
+    def foo():
+        return
+except NameError:
+    def profile(f):
+        return f
 
 def timestamp():
     """
@@ -86,6 +94,34 @@ class CustomSlowDataset(Dataset):
         return item
     
 
+class CachedDataset(Dataset):
+    def __init__(self, wrapped_datset, cachedir='dataset_cache'):
+        self.wrapped_dataset = wrapped_datset
+        self.cachedir = Path(cachedir)
+        self.cachedir.mkdir(exist_ok=True, parents=True)
+        self.classes = self.wrapped_dataset.classes
+        self.epoch = 0
+        
+    def __len__(self):
+        return len(self.wrapped_dataset)
+    
+    def __getitem__(self, index):
+        epoch_dir = self.cachedir / f"epoch_{self.epoch}"
+        epoch_dir.mkdir(exist_ok=True)
+        item_file = epoch_dir / f"{index}.pkl"
+        if item_file.exists():
+            with open(item_file, 'rb') as fp:
+                item = pickle.load(fp)
+        else:
+            item = self.wrapped_dataset[index]
+            with open(item_file, 'wb') as fp:
+                pickle.dump(item, fp)
+        return item
+    
+    def next_epoch(self):
+        self.epoch += 1
+                    
+
 def main():
     parser = argparse.ArgumentParser(description="Script for illustrating data loading")
     
@@ -130,6 +166,7 @@ def main():
     #training_dataset = OxfordIIITPet('datasets', 'trainval', transforms=training_preprocess, download=True)
     training_dataset = CustomSlowDataset('datasets', 'trainval', transform=training_preprocess)
     test_dataset = CustomSlowDataset('datasets', 'test', transform=test_preprocess)
+    training_dataset = CachedDataset(training_dataset, cachedir='training_dataset_cache')
     
     # Determine the number of input features to the output layer:
     num_ftrs = model.fc.in_features
@@ -142,7 +179,7 @@ def main():
     loss_fn = nn.CrossEntropyLoss()
     optimizer = AdamW(model.parameters(), lr=config.learning_rate)
     
-    training_dataloader = DataLoader(training_dataset, batch_size=config.batch_size)
+    training_dataloader = DataLoader(training_dataset, batch_size=config.batch_size, num_workers=4)
     
     historic_losses = deque(maxlen=config.update_iterations)
 
@@ -161,6 +198,9 @@ def main():
             if i % config.update_iterations == 0:
                 mean_loss = mean(historic_losses)
                 training_pbar.set_description(f'Training batch ({mean_loss})')
+                
+        if hasattr(training_dataset, 'next_epoch'):
+            training_dataset.next_epoch()
         
     
 
