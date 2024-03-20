@@ -117,7 +117,11 @@ NameError: name 'profile' is not defined
 This is because the `profile` decorator is defined in a preamble executed when we run the script through `kernprof`, but is not defined if we run the script directly with the regular python. To solve this we can add the following snippet in the beginning of our script:
 
 ```python
-if 'profile' not in globals():
+try:
+    @profile
+    def foo():
+        return
+except NameError:
     def profile(f):
         return f
 ```
