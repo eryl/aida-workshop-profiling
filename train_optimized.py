@@ -24,11 +24,7 @@ import tqdm
 
 from experiment import ExperimentConfig
 
-try:
-    @profile
-    def foo():
-        return
-except NameError:
+if 'profile' not in globals():
     def profile(f):
         return f
 
