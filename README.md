@@ -157,6 +157,31 @@ Now we might end up in a situation where we're saturating all of our CPU cores, 
 
 **Try implementing a wrapper for your slow dataset which first check whether there's a cached version of the item on disk before taking it from the wrapped dataset**
 
+```python
+class CachedDataset(Dataset):
+    def __init__(self, wrapped_datset, cachedir='dataset_cache'):
+        self.wrapped_dataset = wrapped_datset
+        self.cachedir = Path(cachedir)
+        self.cachedir.mkdir(exist_ok=True, parents=True)
+        self.classes = self.wrapped_dataset.classes
+        self.epoch = 0
+        
+    def __len__(self):
+        return len(self.wrapped_dataset)
+    
+    def __getitem__(self, index):
+        epoch_dir = self.cachedir / f"epoch_{self.epoch}"
+        epoch_dir.mkdir(exist_ok=True)
+        item_file = epoch_dir / f"{index}.pkl"
+        if item_file.exists():
+            with open(item_file, 'rb') as fp:
+                item = pickle.load(fp)
+        else:
+            item = self.wrapped_dataset[index]
+            with open(item_file, 'wb') as fp:
+                pickle.dump(item, fp)
+        return item
+```
 
 # Part 6: Pre-fetching batches
 
