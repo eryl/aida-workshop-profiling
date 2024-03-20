@@ -1,0 +1,16 @@
+name: dataloading_workshop
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=11.8
+  - ca-certificates
+  - openssl
+  - tqdm
+  - certifi
+  - pip:
+    - line_profiler
